@@ -50,8 +50,9 @@ script:
 ## Configuration variables:
 - **apn (Optional)**: The APN name. Ask your SIM provider.
 - **apn_user (Optional)**: The APN username.
-- **apn_password: (Optional)**: The APN password.
+- **apn_password (Optional)**: The APN password.
 - **update_interval (Optional, Time)**: Defaults to `10s`. How often to check connection to the SIM800L module and update sensors.
+- **idle_sleep (Optional)**: Defaults to `False`. When `True`, the SIM800L sleep mode is activated when the component is idle.
 
 ## http_get Action
 Send a HTTP GET request to a URL. The action opens a GPRS connection, sends the requests, waits for a response and then closes the GPRS connection. While a HTTP GET request is pending, new requests will be ignored. The timeout is 30s.

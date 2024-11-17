@@ -26,6 +26,7 @@ class Sim800LDataComponent : public uart::UARTDevice, public PollingComponent {
   void set_apn(std::string apn) { this->apn_ = std::move(apn); }
   void set_apn_user(std::string apn_user) { this->apn_user_ = std::move(apn_user); }
   void set_apn_password(std::string apn_password) { this->apn_password_ = std::move(apn_password); }
+  void set_idle_sleep(bool idle_sleep) { this->idle_sleep_ = idle_sleep; }
   void http_get(const std::string &url);
   void add_on_http_request_done_callback(std::function<void(uint16_t, std::string &)> callback) {
     this->http_request_done_callback_.add(std::move(callback));
@@ -114,6 +115,8 @@ class Sim800LDataComponent : public uart::UARTDevice, public PollingComponent {
   std::string apn_;
   std::string apn_user_;
   std::string apn_password_;
+  bool idle_sleep_;
+  bool idle_sleep_active_;
 };
 
 template<typename... Ts> class HttpGetAction : public Action<Ts...> {

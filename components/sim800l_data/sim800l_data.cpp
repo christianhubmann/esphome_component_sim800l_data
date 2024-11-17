@@ -40,11 +40,22 @@ void Sim800LDataComponent::loop() {
   // point again; only after a command succeeded or failed.
   switch (this->state_) {
     case State::INIT:
+    INIT:
       this->await_ok_("", State::DISABLE_ECHO);
+      // The Command Manual recommends to wait 100ms after AT when sleep is enabled
+      if (idle_sleep_active_) {
+        this->wait_.start(AT_SLEEP_WAIT);
+      }
       break;
 
-    case State::DISABLE_ECHO:
-      this->await_ok_("E0", State::CHECK_BATTERY);
+    case State::DISABLE_ECHO: {
+      const State next_state = idle_sleep_active_ ? State::DISABLE_SLEEP : State::CHECK_BATTERY;
+      this->await_ok_("E0", next_state);
+    } break;
+
+    case State::DISABLE_SLEEP:
+      this->await_ok_("+CSCLK=0", State::CHECK_BATTERY);
+      idle_sleep_active_ = false;
       break;
 
     case State::CHECK_BATTERY:
@@ -134,15 +145,31 @@ void Sim800LDataComponent::loop() {
     } break;
 
     case State::IDLE:
-      // If there is a pending http request, start it now. Otherwise do nothing.
+      // If there is a pending http request, start it now
       if (this->http_state_.state == HttpState::QUEUED) {
-        this->state_ = State::HTTP_INIT;
-        // fall through
-      } else {
-        break;
+        // If idle_sleep is active, INIT first. This will disable idle_sleep
+        // and we will reach this point again after INIT.
+        if (idle_sleep_active_) {
+          goto INIT;
+        } else {
+          goto HTTP_INIT;
+        }
       }
+      // If nothing to do, start idle sleep if configured
+      else if (this->idle_sleep_ && !idle_sleep_active_) {
+        goto ENABLE_SLEEP;
+      }
+      break;
+
+    case State::ENABLE_SLEEP:
+    ENABLE_SLEEP:
+      // Enable auto sleep. To wake the module, AT must be sent.
+      this->await_ok_("+CSCLK=2", State::IDLE);
+      this->idle_sleep_active_ = true;
+      break;
 
     case State::HTTP_INIT:
+    HTTP_INIT:
       // Ignore failure. Assume that HTTP is already initialized.
       // If it's not, the next command will fail anyway.
       this->http_state_.state = HttpState::PENDING;

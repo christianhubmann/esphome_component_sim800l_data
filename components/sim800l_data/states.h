@@ -12,6 +12,7 @@ namespace sim800l_data {
 enum class State : uint8_t {
   INIT,
   DISABLE_ECHO,
+  DISABLE_SLEEP,
   CHECK_BATTERY,
   CHECK_BATTERY_RESPONSE,
   CHECK_PIN,
@@ -25,6 +26,7 @@ enum class State : uint8_t {
   CHECK_SIGNAL_QUALITY,
   CHECK_SIGNAL_QUALITY_RESPONSE,
   IDLE,
+  ENABLE_SLEEP,
 
   HTTP_INIT,
   HTTP_SET_SSL,
