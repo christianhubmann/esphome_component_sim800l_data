@@ -1,8 +1,6 @@
 #pragma once
 
-#include <utility>
-#include <vector>
-
+#include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
@@ -12,119 +10,29 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
+#include "constants.h"
+#include "states.h"
 #include "helpers.h"
 
 namespace esphome {
 namespace sim800l_data {
 
-constexpr uint16_t READ_BUFFER_LENGTH = 1024;
-// Default timeout to wait for OK or ERROR
-constexpr uint16_t DEFAULT_COMMAND_TIMEOUT = 1000;
-// Default timeout to wait if an URC is required
-constexpr uint16_t DEFAULT_URC_TIMEOUT = 30000;
-constexpr uint16_t BEARER_OPEN_CLOSE_TIMEOUT = 10000;
-constexpr char CR = 0x0D;
-constexpr char LF = 0x0A;
-
-// Debugging
-constexpr uint32_t DEBUG_SLOWDOWN = 0;
-
-enum class State : uint8_t {
-  INIT,
-  DISABLE_ECHO,
-  CHECK_BATTERY,
-  CHECK_BATTERY_RESPONSE,
-  CHECK_PIN,
-  CHECK_PIN_RESPONSE,
-  SET_CONTYPE_GRPS,
-  SET_APN,
-  SET_APN_USER,
-  SET_APN_PWD,
-  CHECK_REGISTRATION,
-  CHECK_REGISTRATION_RESPONSE,
-  CHECK_SIGNAL_QUALITY,
-  CHECK_SIGNAL_QUALITY_RESPONSE,
-  IDLE,
-
-  HTTP_GET_INIT,
-  HTTP_GET_SET_BEARER,
-  HTTP_GET_OPEN_BEARER,
-  HTTP_GET_SET_URL,
-  HTTP_GET_ACTION,
-  HTTP_GET_ACTION_RESPONSE,
-  HTTP_GET_FAILED,
-
-  CLEANUP1,
-  CLEANUP2
-
-};
-
-// Result of the last sent command
-enum class CommandResult : uint8_t {
-  // Not waiting for a response
-  NONE,
-  // Command succeeded
-  OK,
-  // Error result or timeout
-  ERROR,
-  // Waiting for response
-  PENDING
-};
-
-class CommandState {
- public:
-  bool is_pending{false};
-  std::vector<std::string> response_lines;
-  std::string command;
-  uint8_t expected_response_lines;
-  State success_state;
-  State error_state;
-  uint32_t timeout;
-  bool urc_required;
-  uint32_t urc_timeout;
-  uint32_t start;
-  bool ok_received;
-
-  const std::string &line(const uint8_t index) const {
-    if (index < response_lines.size()) {
-      return response_lines[index];
-    } else {
-      static const std::string empty = "";
-      return empty;
-    }
-  }
-
-  uint32_t runtime() const { return millis() - start; }
-};
-
-struct WaitState {
-  uint32_t start;
-  uint32_t timeout;
-};
-
-struct HttpGetState {
-  enum { OK, ERROR, QUEUED, PENDING } state{OK};
-  std::string url;
-  uint16_t status_code;
-};
-
 class Sim800LDataComponent : public uart::UARTDevice, public PollingComponent {
  public:
   void setup() override;
+  void dump_config() override;
   void update() override;
   void loop() override;
-  void dump_config() override;
   void set_apn(std::string apn) { this->apn_ = std::move(apn); }
   void set_apn_user(std::string apn_user) { this->apn_user_ = std::move(apn_user); }
   void set_apn_password(std::string apn_password) { this->apn_password_ = std::move(apn_password); }
   void http_get(const std::string &url);
-  void add_on_http_get_done_callback(std::function<void(uint16_t)> callback) {
-    this->http_get_done_callback_.add(std::move(callback));
+  void add_on_http_request_done_callback(std::function<void(uint16_t, std::string &)> callback) {
+    this->http_request_done_callback_.add(std::move(callback));
   }
-  void add_on_http_get_failed_callback(std::function<void(void)> callback) {
-    this->http_get_failed_callback_.add(std::move(callback));
+  void add_on_http_request_failed_callback(std::function<void(void)> callback) {
+    this->http_request_failed_callback_.add(std::move(callback));
   }
-
 #ifdef USE_SENSOR
   void set_signal_strength_sensor(sensor::Sensor *sensor) { signal_strength_sensor_ = sensor; }
   void set_battery_level_sensor(sensor::Sensor *sensor) { battery_level_sensor_ = sensor; }
@@ -132,78 +40,80 @@ class Sim800LDataComponent : public uart::UARTDevice, public PollingComponent {
 #endif
 
  protected:
+  State state_{State::INIT};
+  CommandState command_state_;
+  WaitState wait_;
+  HttpState http_state_;
+  std::string read_buffer_;
+
+  // Read the next response line into the read buffer.
+  // Returns true when a line has been read.
+  bool read_line_();
+
+  // Read until the read buffer has up to length bytes.
+  // Returns true when the read buffer contains data.
+  bool read_bytes_(const uint16_t length);
+
+  // Read incoming responses and handle them.
+  // Returns false if we are waiting on something.
+  bool handle_response_();
+
+  // Write a string to UART.
+  void write_(const std::string &s);
+
+  // Write a string to UART. \r\n will be appended.
+  void write_line_(const std::string &s);
+
+  // Send a command and wait for OK.
+  void await_ok_(const std::string &command, const State success_state, const State error_state,
+                 const uint32_t timeout);
+
+  // Send a command and wait for OK.
+  void await_ok_(const std::string &command, const State success_state) {
+    this->await_ok_(command, success_state, State::INIT, DEFAULT_COMMAND_TIMEOUT);
+  }
+
+  // Send a command and wait for OK.
+  void await_ok_(const std::string &command, const State success_state, const State error_state) {
+    this->await_ok_(command, success_state, error_state, DEFAULT_COMMAND_TIMEOUT);
+  }
+
+  // Send a command and wait for a response, then OK.
+  void await_response_(const std::string &command, State success_state, State error_state, uint32_t timeout);
+
+  // Send a command and wait for a response, then OK.
+  void await_response_(const std::string &command, State success_state) {
+    this->await_response_(command, success_state, State::INIT, DEFAULT_COMMAND_TIMEOUT);
+  }
+
+  // Send a command and wait for OK, then URC.
+  void await_urc_(const std::string &command, State success_state, State error_state, uint32_t timeout,
+                  uint32_t urc_timeout);
+
+  // Send a command and wait for OK, then URC.
+  void await_urc_(const std::string &command, State success_state, State error_state) {
+    this->await_urc_(command, success_state, error_state, DEFAULT_COMMAND_TIMEOUT, DEFAULT_URC_TIMEOUT);
+  }
+
+  // Send a command and wait for data of a specific length, then OK.
+  void await_data_(const std::string &command, uint32_t data_length, State success_state, State error_state,
+                   uint32_t timeout);
+
+  // Send a command and wait for data of a specific length, then OK.
+  void await_data_(const std::string &command, uint32_t data_length, State success_state, State error_state) {
+    this->await_data_(command, data_length, success_state, error_state, DEFAULT_COMMAND_TIMEOUT);
+  }
+
 #ifdef USE_SENSOR
   sensor::Sensor *signal_strength_sensor_{nullptr};
   sensor::Sensor *battery_level_sensor_{nullptr};
   sensor::Sensor *battery_voltage_sensor_{nullptr};
 #endif
-  CallbackManager<void(uint16_t)> http_get_done_callback_;
-  CallbackManager<void(void)> http_get_failed_callback_;
-
-  // The current state of this component.
-  State state_{State::INIT};
-
-  // -- config --
-
+  CallbackManager<void(uint16_t, std::string &)> http_request_done_callback_;
+  CallbackManager<void(void)> http_request_failed_callback_;
   std::string apn_;
   std::string apn_user_;
   std::string apn_password_;
-
-  // -- uart reading/writing --
-
-  char read_buffer_[READ_BUFFER_LENGTH];
-  size_t buffer_pos_{0};
-  bool read_line_(std::string &line);
-  void write_line_(const std::string &line);
-
-  // -- wait handling --
-
-  WaitState wait_state_;
-  void wait_(const uint32_t timeout);
-  bool is_waiting_();
-
-  // -- command handling --
-
-  /// @brief Send a command.
-  /// @param command The command.
-  /// @param success_state The component state after the command was executed successfully.
-  /// @param error_state The component state after the command fails or times out.
-  /// @param expected_response_lines The numer ob expected response lines. If it doesn't match the actual received
-  /// lines, the command will error out, even if OK is received. 0 to disable the check (e.g. when unknown).
-  /// @param timeout The timout in ms.
-  void send_command_(const std::string &command, State success_state, State error_state,
-                     uint8_t expected_response_lines, uint32_t timeout, bool urc_required, uint32_t urc_timeout);
-
-  void send_command_(const std::string &command, State success_state) {
-    send_command_(command, success_state, State::INIT, 0, DEFAULT_COMMAND_TIMEOUT, false, DEFAULT_URC_TIMEOUT);
-  }
-
-  void send_command_(const std::string &command, State success_state, State error_state) {
-    send_command_(command, success_state, error_state, 0, DEFAULT_COMMAND_TIMEOUT, false, DEFAULT_URC_TIMEOUT);
-  }
-
-  void send_command_(const std::string &command, State success_state, uint8_t expected_response_lines) {
-    send_command_(command, success_state, State::INIT, expected_response_lines, DEFAULT_COMMAND_TIMEOUT, false,
-                  DEFAULT_URC_TIMEOUT);
-  }
-
-  void send_command_(const std::string &command, State success_state, State error_state,
-                     uint8_t expected_response_lines) {
-    send_command_(command, success_state, error_state, expected_response_lines, DEFAULT_COMMAND_TIMEOUT, false,
-                  DEFAULT_URC_TIMEOUT);
-  }
-
-  void send_command_(const std::string &command, State success_state, State error_state,
-                     uint8_t expected_response_lines, uint32_t timeout) {
-    send_command_(command, success_state, error_state, expected_response_lines, timeout, false, DEFAULT_URC_TIMEOUT);
-  }
-
-  CommandResult receive_response_();
-  CommandState command_state_;
-
-  // -- http --
-
-  HttpGetState http_state_;
 };
 
 template<typename... Ts> class HttpGetAction : public Action<Ts...> {
@@ -220,17 +130,18 @@ template<typename... Ts> class HttpGetAction : public Action<Ts...> {
   Sim800LDataComponent *parent_;
 };
 
-class HttpGetDoneTrigger : public Trigger<uint16_t> {
+class HttpRequestDoneTrigger : public Trigger<uint16_t, std::string &> {
  public:
-  explicit HttpGetDoneTrigger(Sim800LDataComponent *parent) {
-    parent->add_on_http_get_done_callback([this](const uint16_t status_code) { this->trigger(status_code); });
+  explicit HttpRequestDoneTrigger(Sim800LDataComponent *parent) {
+    parent->add_on_http_request_done_callback(
+        [this](uint16_t status_code, std::string &response_body) { this->trigger(status_code, response_body); });
   }
 };
 
-class HttpGetFailedTrigger : public Trigger<> {
+class HttpRequestFailedTrigger : public Trigger<> {
  public:
-  explicit HttpGetFailedTrigger(Sim800LDataComponent *parent) {
-    parent->add_on_http_get_failed_callback([this]() { this->trigger(); });
+  explicit HttpRequestFailedTrigger(Sim800LDataComponent *parent) {
+    parent->add_on_http_request_failed_callback([this]() { this->trigger(); });
   }
 };
 

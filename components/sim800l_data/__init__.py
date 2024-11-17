@@ -10,8 +10,8 @@ CODEOWNERS = ["@christianhubmann"]
 CONF_APN = "apn"
 CONF_APN_USER = "apn_user"
 CONF_APN_PASSWORD = "apn_password"
-CONF_ON_HTTP_GET_DONE = "on_http_get_done"
-CONF_ON_HTTP_GET_FAILED = "on_http_get_failed"
+CONF_ON_HTTP_REQUEST_DONE = "on_http_request_done"
+CONF_ON_HTTP_REQUEST_FAILED = "on_http_request_failed"
 
 sim800l_data_ns = cg.esphome_ns.namespace("sim800l_data")
 Sim800LDataComponent = sim800l_data_ns.class_("Sim800LDataComponent", cg.Component)
@@ -19,16 +19,16 @@ Sim800LDataComponent = sim800l_data_ns.class_("Sim800LDataComponent", cg.Compone
 # Send a HTTP GET request over GPRS.
 HttpGetAction = sim800l_data_ns.class_("HttpGetAction", automation.Action)
 
-# This automation triggers when the HTTP GET request was sent successfully.
+# This automation triggers when the HTTP request was sent successfully.
 # This does not mean that the remote server returned a success status code.
-HttpGetDoneTrigger = sim800l_data_ns.class_(
-    "HttpGetDoneTrigger",
-    automation.Trigger.template(cg.uint16),
+HttpRequestDoneTrigger = sim800l_data_ns.class_(
+    "HttpRequestDoneTrigger",
+    automation.Trigger.template(cg.uint16, cg.std_string_ref),
 )
 
-# This automation triggers when the HTTP GET request could not be sent.
-HttpGetFailedTrigger = sim800l_data_ns.class_(
-    "HttpGetFailedTrigger",
+# This automation triggers when the HTTP request could not be sent.
+HttpRequestFailedTrigger = sim800l_data_ns.class_(
+    "HttpRequestFailedTrigger",
     automation.Trigger.template(),
 )
 
@@ -40,14 +40,14 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_APN): cv.All(cv.string, cv.Length(max=64)),
             cv.Optional(CONF_APN_USER): cv.All(cv.string, cv.Length(max=32)),
             cv.Optional(CONF_APN_PASSWORD): cv.All(cv.string, cv.Length(max=32)),
-            cv.Optional(CONF_ON_HTTP_GET_DONE): automation.validate_automation(
+            cv.Optional(CONF_ON_HTTP_REQUEST_DONE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpGetDoneTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpRequestDoneTrigger),
                 }
             ),
-            cv.Optional(CONF_ON_HTTP_GET_FAILED): automation.validate_automation(
+            cv.Optional(CONF_ON_HTTP_REQUEST_FAILED): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpGetFailedTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(HttpRequestFailedTrigger),
                 }
             ),
         }
@@ -74,10 +74,10 @@ async def to_code(config):
         cg.add(var.set_apn_user(config[CONF_APN_USER]))
     if CONF_APN_PASSWORD in config:
         cg.add(var.set_apn_password(config[CONF_APN_PASSWORD]))
-    for conf in config.get(CONF_ON_HTTP_GET_DONE, []):
+    for conf in config.get(CONF_ON_HTTP_REQUEST_DONE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint16, "status_code")], conf)
-    for conf in config.get(CONF_ON_HTTP_GET_FAILED, []):
+        await automation.build_automation(trigger, [(cg.uint16, "status_code"), (cg.std_string_ref, "response_body")], conf)
+    for conf in config.get(CONF_ON_HTTP_REQUEST_FAILED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 

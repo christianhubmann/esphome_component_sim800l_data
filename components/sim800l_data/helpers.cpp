@@ -3,18 +3,16 @@
 namespace esphome {
 namespace sim800l_data {
 
-// static const char *const TAG = "sim800l_data";
-
-void parse_response_params(const std::string &response, uint8_t param_count, std::string &p1, std::string &p2,
-                           std::string &p3) {
-  // read command responses take the following form: AT+XYZ: 1,2,3
+void get_response_param_(const std::string &response, const uint8_t p_count, std::string &p1, std::string &p2,
+                         std::string &p3) {
+  // Expample response: +CBC: 1,2,3
   size_t start = response.find(": ");
   if (start == std::string::npos) {
     return;
   }
   start++;
 
-  for (uint8_t i = 1; i <= param_count; i++) {
+  for (uint8_t i = 1; i <= p_count; i++) {
     size_t end = response.find(",", start + 1);
     if (end == std::string::npos) {
       end = response.size();
@@ -38,31 +36,22 @@ void parse_response_params(const std::string &response, uint8_t param_count, std
   }
 }
 
-void parse_response_params(const std::string &response, std::string &p1) {
-  std::string p2, p3;
-  parse_response_params(response, 1, p1, p2, p3);
+void get_response_param(const std::string &response, std::string &p1, std::string &p2, std::string &p3) {
+  get_response_param_(response, 3, p1, p2, p3);
 }
 
-void parse_response_params(const std::string &response, std::string &p1, std::string &p2) {
-  std::string p3;
-  parse_response_params(response, 2, p1, p2, p3);
+void get_response_param(const std::string &response, std::string &p1, std::string &p2) {
+  get_response_param_(response, 2, p1, p2, p2);
 }
 
-void parse_response_params(const std::string &response, std::string &p1, std::string &p2, std::string &p3) {
-  parse_response_params(response, 3, p1, p2, p3);
-}
+void get_response_param(const std::string &response, std::string &p) { get_response_param_(response, 1, p, p, p); }
 
-bool ignore_response(const std::string &response) { return response == "Call Ready" || response == "SMS Ready"; }
-
-bool is_urc_response(const std::string &command, const std::string &response) {
+bool is_response_or_urc(const std::string &command, const std::string &response) {
   size_t length = response.find(":");
   if (length == std::string::npos) {
     return false;
   }
-  // Compare substrings to avoid creating temporary strings
-  static const std::string prefix = "AT";
-  return command.compare(0, prefix.size(), prefix) == 0 &&
-         command.compare(prefix.size(), length, response, 0, length) == 0;
+  return command.compare(0, length, response, 0, length) == 0;
 }
 
 int8_t get_rssi_dbm(uint8_t rssi_param) {
