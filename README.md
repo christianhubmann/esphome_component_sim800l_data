@@ -14,11 +14,16 @@ uart:
   tx_pin:
     number: GPIO5
 
+external_components:
+  - source: github://christianhubmann/esphome_component_sim800l_data@main
+    components: [ sim800l_data ]
+
 sim800l_data:
   apn: "internet"
   apn_user: ""
   apn_password: ""
   update_interval: 10s
+  idle_sleep: False
   on_http_request_done:
     - logger.log:
         format: "HTTP request done: %d %s"
