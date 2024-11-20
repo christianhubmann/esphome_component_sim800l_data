@@ -54,7 +54,7 @@ bool is_response_or_urc(const std::string &command, const std::string &response)
   return command.compare(0, length, response, 0, length) == 0;
 }
 
-int8_t get_rssi_dbm(uint8_t rssi_param) {
+int8_t get_rssi_dbm(const uint8_t rssi_param) {
   switch (rssi_param) {
     case 2:
       return -109;
@@ -116,6 +116,15 @@ int8_t get_rssi_dbm(uint8_t rssi_param) {
       return -53;
   }
   return 0;
+}
+
+const std::string str_concat(const std::string &s1, const std::string &s2, const std::string &s3) {
+  std::string result;
+  result.reserve(s1.size() + s2.size() + s3.size());
+  result.append(s1);
+  result.append(s2);
+  result.append(s3);
+  return result;
 }
 
 }  // namespace sim800l_data

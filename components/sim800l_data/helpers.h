@@ -52,5 +52,7 @@ bool is_response_or_urc(const std::string &command, const std::string &response)
 // Converts the result parameter of +CSQ to a RSSI dBm value.
 int8_t get_rssi_dbm(uint8_t rssi_param);
 
+const std::string str_concat(const std::string &s1, const std::string &s2, const std::string &s3);
+
 }  // namespace sim800l_data
 }  // namespace esphome

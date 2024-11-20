@@ -100,16 +100,28 @@ void Sim800LDataComponent::loop() {
       break;
 
     case State::SET_APN:
-      this->await_ok_("+SAPBR=3,1,\"APN\",\"" + this->apn_ + "\"", State::SET_APN_USER);
-      break;
+      if (!this->apn_.empty()) {
+        const std::string cmd = str_concat("+SAPBR=3,1,\"APN\",\"", this->apn_, "\"");
+        this->await_ok_(cmd, State::SET_APN_USER);
+        break;
+      }
+      this->state_ = State::SET_APN_USER;
 
     case State::SET_APN_USER:
-      this->await_ok_("+SAPBR=3,1,\"USER\",\"" + this->apn_user_ + "\"", State::SET_APN_PWD);
-      break;
+      if (!this->apn_user_.empty()) {
+        const std::string cmd = str_concat("+SAPBR=3,1,\"USER\",\"", this->apn_user_, "\"");
+        this->await_ok_(cmd, State::SET_APN_PWD);
+        break;
+      }
+      this->state_ = State::SET_APN_PWD;
 
     case State::SET_APN_PWD:
-      this->await_ok_("+SAPBR=3,1,\"PWD\",\"" + this->apn_password_ + "\"", State::CHECK_REGISTRATION);
-      break;
+      if (!this->apn_password_.empty()) {
+        const std::string cmd = str_concat("+SAPBR=3,1,\"PWD\",\"", this->apn_password_, "\"");
+        this->await_ok_(cmd, State::CHECK_REGISTRATION);
+        break;
+      }
+      this->state_ = State::CHECK_REGISTRATION;
 
     case State::CHECK_REGISTRATION:
       this->await_response_("+CREG?", State::CHECK_REGISTRATION_RESPONSE);
@@ -121,7 +133,7 @@ void Sim800LDataComponent::loop() {
       if (stat != 1 && stat != 5) {
         ESP_LOGE(TAG, "Not registered to network.");
         this->state_ = State::INIT;
-        this->wait_.start(5000);
+        this->wait_.start(NOT_REGISTERED_WAIT);
       } else {
         this->state_ = State::CHECK_SIGNAL_QUALITY;
       }
@@ -177,7 +189,7 @@ void Sim800LDataComponent::loop() {
       break;
 
     case State::HTTP_SET_SSL:
-      this->await_ok_("+HTTPSSL=" + std::to_string(this->http_state_.ssl), State::HTTP_SET_BEARER, State::HTTP_FAILED);
+      this->await_ok_("+HTTPSSL=" + to_string(this->http_state_.ssl), State::HTTP_SET_BEARER, State::HTTP_FAILED);
       break;
 
     case State::HTTP_SET_BEARER:
@@ -188,10 +200,10 @@ void Sim800LDataComponent::loop() {
       this->await_ok_("+SAPBR=1,1", State::HTTP_SET_URL, State::HTTP_FAILED, BEARER_OPEN_CLOSE_TIMEOUT);
       break;
 
-    case State::HTTP_SET_URL:
-      // TODO: avoid string concat
-      this->await_ok_("+HTTPPARA=\"URL\",\"" + this->http_state_.url + "\"", State::HTTP_ACTION, State::HTTP_FAILED);
-      break;
+    case State::HTTP_SET_URL: {
+      const std::string cmd = str_concat("+HTTPPARA=\"URL\",\"", this->http_state_.url, "\"");
+      this->await_ok_(cmd, State::HTTP_ACTION, State::HTTP_FAILED);
+    } break;
 
     case State::HTTP_ACTION:
       this->await_urc_("+HTTPACTION=0", State::HTTP_ACTION_RESPONSE, State::HTTP_FAILED);

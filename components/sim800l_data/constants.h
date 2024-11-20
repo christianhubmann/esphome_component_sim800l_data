@@ -12,6 +12,7 @@ constexpr uint16_t BEARER_OPEN_CLOSE_TIMEOUT = 10000;
 constexpr uint16_t ERROR_WAIT = 1000;
 constexpr uint16_t MAX_HTTP_RESPONSE_SIZE = 10240;
 constexpr uint16_t AT_SLEEP_WAIT = 100;
+static const uint16_t NOT_REGISTERED_WAIT = 5000;
 
 constexpr char CR = 0x0D;
 constexpr char LF = 0x0A;
