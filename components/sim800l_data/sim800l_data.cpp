@@ -11,7 +11,15 @@ void Sim800LDataComponent::setup() {
 
 void Sim800LDataComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Sim800LData:");
-  // TODO: implement me
+  ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
+  ESP_LOGCONFIG(TAG, "  APN User: %s", this->apn_user_.c_str());
+  ESP_LOGCONFIG(TAG, "  APN Password: %s", this->apn_password_.c_str());
+  ESP_LOGCONFIG(TAG, "  Idle Sleep: %s", YESNO(this->idle_sleep_));
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Signal Strength", this->signal_strength_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
+#endif
 }
 
 void Sim800LDataComponent::update() {
@@ -495,8 +503,8 @@ void Sim800LDataComponent::http_get(const std::string &url) {
   }
   this->http_state_ = {
       .state = HttpState::QUEUED, .method = HttpState::GET, .url = url, .status_code = 0, .response_data = ""};
-  this->http_state_.ssl = url.size() >= (sizeof(HTTPS_PROTO) - 1) &&
-                          strcasecmp(url.substr(0, sizeof(HTTPS_PROTO) - 1).c_str(), HTTPS_PROTO) == 0;
+  this->http_state_.ssl =
+      url.size() >= strlen(HTTPS_PROTO) && strcasecmp(url.substr(0, strlen(HTTPS_PROTO)).c_str(), HTTPS_PROTO) == 0;
 
   ESP_LOGI(TAG, "HTTP GET queued: %s ssl=%d", url.c_str(), this->http_state_.ssl);
 }
