@@ -19,6 +19,7 @@ external_components:
     components: [ sim800l_data ]
 
 sim800l_data:
+  pin: "1234"
   apn: "internet"
   apn_user: ""
   apn_password: ""
@@ -53,6 +54,7 @@ script:
 ````
 
 ## Configuration variables:
+- **pin (Optional)**: The PIN of the SIM card, if the SIM is locked with PIN. If the given PIN is wrong, the component will stop because after 3 tries the SIM would become locked with PUK. If the SIM is locked with PUK, you need to unlock it with another device.
 - **apn (Optional)**: The APN name. Ask your SIM provider.
 - **apn_user (Optional)**: The APN username.
 - **apn_password (Optional)**: The APN password.

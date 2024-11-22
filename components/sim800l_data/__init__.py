@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_URL
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_URL, CONF_PIN
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@christianhubmann"]
@@ -38,6 +38,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Sim800LDataComponent),
+            cv.Optional(CONF_PIN): cv.All(cv.string, cv.Length(min=4, max=8)),
             cv.Optional(CONF_APN): cv.All(cv.string, cv.Length(max=64)),
             cv.Optional(CONF_APN_USER): cv.All(cv.string, cv.Length(max=32)),
             cv.Optional(CONF_APN_PASSWORD): cv.All(cv.string, cv.Length(max=32)),
@@ -72,6 +73,8 @@ async def to_code(config):
 
     if CONF_APN in config:
         cg.add(var.set_apn(config[CONF_APN]))
+    if CONF_PIN in config:
+        cg.add(var.set_pin(config[CONF_PIN]))
     if CONF_APN_USER in config:
         cg.add(var.set_apn_user(config[CONF_APN_USER]))
     if CONF_APN_PASSWORD in config:

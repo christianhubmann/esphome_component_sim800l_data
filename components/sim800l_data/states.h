@@ -17,6 +17,7 @@ enum class State : uint8_t {
   CHECK_BATTERY_RESPONSE,
   CHECK_PIN,
   CHECK_PIN_RESPONSE,
+  WRONG_PIN,
   SET_CONTYPE_GRPS,
   SET_APN,
   SET_APN_USER,
@@ -27,6 +28,7 @@ enum class State : uint8_t {
   CHECK_SIGNAL_QUALITY_RESPONSE,
   IDLE,
   ENABLE_SLEEP,
+  FATAL,
 
   HTTP_INIT,
   HTTP_SET_SSL,

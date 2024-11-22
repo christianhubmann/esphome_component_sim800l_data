@@ -11,6 +11,7 @@ void Sim800LDataComponent::setup() {
 
 void Sim800LDataComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Sim800LData:");
+  ESP_LOGCONFIG(TAG, "  SIM PIN: %s", this->pin_.c_str());
   ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
   ESP_LOGCONFIG(TAG, "  APN User: %s", this->apn_user_.c_str());
   ESP_LOGCONFIG(TAG, "  APN Password: %s", this->apn_password_.c_str());
@@ -50,7 +51,6 @@ void Sim800LDataComponent::loop() {
     case State::INIT:
     INIT:
       this->await_ok_("", State::DISABLE_ECHO);
-      // The Command Manual recommends to wait 100ms after AT when sleep is enabled
       if (idle_sleep_active_) {
         this->wait_.start(AT_SLEEP_WAIT);
       }
@@ -92,18 +92,45 @@ void Sim800LDataComponent::loop() {
 
     case State::CHECK_PIN_RESPONSE: {
       std::string code;
-      get_response_param(this->command_state_.response, code);
+      if (!this->command_state_.urc.empty()) {
+        get_response_param(this->command_state_.urc, code);
+      } else {
+        get_response_param(this->command_state_.response, code);
+      }
+
       if (code == READY) {
         this->state_ = State::SET_CONTYPE_GRPS;
-      } else {
-        // TODO: PIN config not yet implemented
+        goto SET_CONTYPE_GRPS;
+      } else if (code == SIM_PIN) {
+        if (this->pin_.empty()) {
+          ESP_LOGE(TAG, "SIM is locked, but no SIM PIN configured.");
+          this->state_ = State::INIT;
+          this->wait_.start(FUTILE_WAIT);
+        } else {
+          // Enter PIN. If it's correct, module will answer with OK and then URC "READY".
+          // If it's wrong, module will simply answer with ERROR. In that case, do not try
+          // again because after 3 tries the SIM will become locked with PUK.
+          const std::string cmd = str_concat("+CPIN=\"", this->pin_, "\"");
+          this->await_urc_(cmd, State::CHECK_PIN_RESPONSE, State::WRONG_PIN);
+        }
+      } else if (code == SIM_PUK) {
+        ESP_LOGE(TAG, "SIM is locked with PUK. Use another device to unlock it.");
         this->state_ = State::INIT;
-        this->wait_.start(5000);
+        this->wait_.start(FUTILE_WAIT);
+      } else {
+        ESP_LOGE(TAG, "SIM is locked with status: %s", code.c_str());
+        this->state_ = State::INIT;
+        this->wait_.start(FUTILE_WAIT);
       }
+    } break;
+
+    case State::WRONG_PIN:
+      ESP_LOGE(TAG, "Wrong PIN. Component will stop.");
+      this->state_ = State::FATAL;
       break;
-    }
 
     case State::SET_CONTYPE_GRPS:
+    SET_CONTYPE_GRPS:
       this->await_ok_("+SAPBR=3,1,\"CONTYPE\",\"GPRS\"", State::SET_APN);
       break;
 
@@ -181,6 +208,11 @@ void Sim800LDataComponent::loop() {
       }
       break;
 
+    case State::FATAL:
+      ESP_LOGE(TAG, "Fatal error.");
+      this->wait_.start(FUTILE_WAIT);
+      break;
+
     case State::ENABLE_SLEEP:
     ENABLE_SLEEP:
       // Enable auto sleep. To wake the module, AT must be sent.
@@ -205,7 +237,7 @@ void Sim800LDataComponent::loop() {
       break;
 
     case State::HTTP_OPEN_BEARER:
-      this->await_ok_("+SAPBR=1,1", State::HTTP_SET_URL, State::HTTP_FAILED, BEARER_OPEN_CLOSE_TIMEOUT);
+      this->await_ok_("+SAPBR=1,1", State::HTTP_SET_URL, State::HTTP_FAILED, BEARER_OPEN_TIMEOUT);
       break;
 
     case State::HTTP_SET_URL: {
@@ -267,7 +299,7 @@ void Sim800LDataComponent::loop() {
       break;
 
     case State::HTTP_CLOSE_BEARER:
-      this->await_ok_("+SAPBR=0,1", State::IDLE, State::INIT, BEARER_OPEN_CLOSE_TIMEOUT);
+      this->await_ok_("+SAPBR=0,1", State::IDLE, State::INIT, BEARER_CLOSE_TIMEOUT);
       break;
   }
 }

@@ -23,6 +23,7 @@ class Sim800LDataComponent : public uart::UARTDevice, public PollingComponent {
   void dump_config() override;
   void update() override;
   void loop() override;
+  void set_pin(std::string pin) { this->pin_ = std::move(pin); }
   void set_apn(std::string apn) { this->apn_ = std::move(apn); }
   void set_apn_user(std::string apn_user) { this->apn_user_ = std::move(apn_user); }
   void set_apn_password(std::string apn_password) { this->apn_password_ = std::move(apn_password); }
@@ -112,6 +113,7 @@ class Sim800LDataComponent : public uart::UARTDevice, public PollingComponent {
 #endif
   CallbackManager<void(uint16_t, std::string &)> http_request_done_callback_;
   CallbackManager<void(void)> http_request_failed_callback_;
+  std::string pin_;
   std::string apn_;
   std::string apn_user_;
   std::string apn_password_;
