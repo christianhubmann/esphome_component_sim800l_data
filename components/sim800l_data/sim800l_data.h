@@ -84,6 +84,11 @@ class Sim800LDataComponent : public uart::UARTDevice, public PollingComponent {
   void await_response_(const std::string &command, State success_state, State error_state, uint32_t timeout);
 
   // Send a command and wait for a response, then OK.
+  void await_response_(const std::string &command, State success_state, uint32_t timeout) {
+    this->await_response_(command, success_state, State::INIT, timeout);
+  }
+
+  // Send a command and wait for a response, then OK.
   void await_response_(const std::string &command, State success_state) {
     this->await_response_(command, success_state, State::INIT, DEFAULT_COMMAND_TIMEOUT);
   }

@@ -4,9 +4,9 @@ namespace esphome {
 namespace sim800l_data {
 
 void Sim800LDataComponent::setup() {
-  // wait a bit before initialization starts
+  // wait for SIM module to start before initialization starts
   this->state_ = State::INIT;
-  this->wait_.start(1000);
+  this->wait_.start(SETUP_WAIT);
 }
 
 void Sim800LDataComponent::dump_config() {
@@ -36,6 +36,8 @@ void Sim800LDataComponent::update() {
 }
 
 void Sim800LDataComponent::loop() {
+  // Handle incoming messages. Returns true if no command execution
+  // is pending and no new data is received.
   if (!this->handle_response_()) {
     return;
   }
@@ -87,7 +89,7 @@ void Sim800LDataComponent::loop() {
     } break;
 
     case State::CHECK_PIN:
-      this->await_response_("+CPIN?", State::CHECK_PIN_RESPONSE);
+      this->await_response_("+CPIN?", State::CHECK_PIN_RESPONSE, CHECK_PIN_TIMEOUT);
       break;
 
     case State::CHECK_PIN_RESPONSE: {
@@ -111,7 +113,7 @@ void Sim800LDataComponent::loop() {
           // If it's wrong, module will simply answer with ERROR. In that case, do not try
           // again because after 3 tries the SIM will become locked with PUK.
           const std::string cmd = str_concat("+CPIN=\"", this->pin_, "\"");
-          this->await_urc_(cmd, State::CHECK_PIN_RESPONSE, State::WRONG_PIN);
+          this->await_urc_(cmd, State::CHECK_PIN_RESPONSE, State::WRONG_PIN, CHECK_PIN_TIMEOUT, CHECK_PIN_TIMEOUT);
         }
       } else if (code == SIM_PUK) {
         ESP_LOGE(TAG, "SIM is locked with PUK. Use another device to unlock it.");
@@ -246,7 +248,8 @@ void Sim800LDataComponent::loop() {
     } break;
 
     case State::HTTP_ACTION:
-      this->await_urc_("+HTTPACTION=0", State::HTTP_ACTION_RESPONSE, State::HTTP_FAILED);
+      this->await_urc_("+HTTPACTION=0", State::HTTP_ACTION_RESPONSE, State::HTTP_FAILED, HTTP_ACTION_TIMEOUT,
+                       DEFAULT_URC_TIMEOUT);
       break;
 
     case State::HTTP_ACTION_RESPONSE: {
@@ -376,7 +379,6 @@ bool Sim800LDataComponent::handle_response_() {
       ESP_LOGE(TAG, "Command \"AT%s\" timed out after %d ms", cmd.command.c_str(), cmd.runtime());
       cmd.is_pending = false;
       this->state_ = cmd.error_state;
-      this->wait_.start(ERROR_WAIT);
     }
     return false;
   }
@@ -404,7 +406,6 @@ bool Sim800LDataComponent::handle_response_() {
         ESP_LOGE(TAG, "Command \"AT%s\" failed: missing response", cmd.command.c_str());
         cmd.is_pending = false;
         this->state_ = cmd.error_state;
-        this->wait_.start(ERROR_WAIT);
         return false;
       }
 
@@ -412,7 +413,6 @@ bool Sim800LDataComponent::handle_response_() {
         ESP_LOGE(TAG, "Command \"AT%s\" failed: missing data", cmd.command.c_str());
         cmd.is_pending = false;
         this->state_ = cmd.error_state;
-        this->wait_.start(ERROR_WAIT);
         return false;
       }
 
@@ -432,7 +432,6 @@ bool Sim800LDataComponent::handle_response_() {
       ESP_LOGE(TAG, "Command \"AT%s\" failed after %d ms", cmd.command.c_str(), cmd.runtime());
       cmd.is_pending = false;
       this->state_ = cmd.error_state;
-      this->wait_.start(ERROR_WAIT);
       return false;
     }
 
@@ -469,7 +468,6 @@ bool Sim800LDataComponent::handle_response_() {
       cmd.is_pending = false;
       this->state_ = cmd.error_state;
       ESP_LOGE(TAG, "Command \"AT%s\" timed out after %d ms", cmd.command.c_str(), cmd.runtime());
-      this->wait_.start(ERROR_WAIT);
     }
     return false;
   }
