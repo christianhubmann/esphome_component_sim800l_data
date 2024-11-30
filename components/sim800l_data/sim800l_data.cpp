@@ -531,8 +531,10 @@ void Sim800LDataComponent::http_get(const std::string &url) {
   if (this->http_state_.state == HttpState::QUEUED) {
     ESP_LOGW(TAG, "HTTP request queued, overwriting");
   }
-  this->http_state_ = {
-      .state = HttpState::QUEUED, .method = HttpState::GET, .url = url, .status_code = 0, .response_data = ""};
+  this->http_state_.reset();
+  this->http_state_.state = HttpState::QUEUED;
+  this->http_state_.method = HttpState::GET;
+  this->http_state_.url = url;
   this->http_state_.ssl =
       url.size() >= strlen(HTTPS_PROTO) && strcasecmp(url.substr(0, strlen(HTTPS_PROTO)).c_str(), HTTPS_PROTO) == 0;
 
